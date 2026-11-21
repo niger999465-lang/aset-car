@@ -1,0 +1,29 @@
+name: Build Assets.car
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  compile-assets:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Compile Assets.xcassets to Assets.car
+        run: |
+          mkdir -p build_out
+          xcrun actool Assets.xcassets \
+            --compile build_out \
+            --platform iphoneos \
+            --minimum-deployment-target 15.0 \
+            --app-icon AppIcon \
+            --output-partial-info-plist build_out/assetcatalog_generated_info.plist
+
+      - name: Upload Assets.car Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-assets
+          path: build_out/
