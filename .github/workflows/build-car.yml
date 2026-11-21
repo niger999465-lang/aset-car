@@ -12,6 +12,49 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Resize AppIcon to 1024x1024 and update Contents.json
+        run: |
+          python3 - << 'EOF'
+          import json, os, struct, subprocess, zlib
+
+          icon_dir = "Assets.xcassets/AppIcon.appiconset"
+          os.makedirs(icon_dir, exist_ok=True)
+
+          pngs = [f for f in os.listdir(icon_dir) if f.lower().endswith(".png")]
+          if not pngs:
+              w, h = 1024, 1024
+              raw = b"".join(b"\x00" + b"\x1e\x90\xff\xff" * w for _ in range(h))
+              def chunk(tag, data):
+                  return struct.pack("!I", len(data)) + tag + data + struct.pack("!I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+              png_bytes = (
+                  b"\x89PNG\r\n\x1a\n"
+                  + chunk(b"IHDR", struct.pack("!IIBBBBB", w, h, 8, 6, 0, 0, 0))
+                  + chunk(b"IDAT", zlib.compress(raw, level=6))
+                  + chunk(b"IEND", b"")
+              )
+              target = os.path.join(icon_dir, "icon_1024.png")
+              with open(target, "wb") as f:
+                  f.write(png_bytes)
+              chosen = "icon_1024.png"
+          else:
+              chosen = pngs[0]
+              target = os.path.join(icon_dir, chosen)
+              subprocess.run(["sips", "-z", "1024", "1024", target], check=True)
+
+          with open(os.path.join(icon_dir, "Contents.json"), "w", encoding="utf-8") as f:
+              json.dump({
+                  "images": [
+                      {
+                          "filename": chosen,
+                          "idiom": "universal",
+                          "platform": "ios",
+                          "size": "1024x1024"
+                      }
+                  ],
+                  "info": {"author": "xcode", "version": 1}
+              }, f, indent=2)
+          EOF
+
       - name: Compile Assets.xcassets to Assets.car
         run: |
           mkdir -p build_out
